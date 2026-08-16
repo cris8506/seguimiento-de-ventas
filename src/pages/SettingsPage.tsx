@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Copy,
   Check,
@@ -11,11 +11,10 @@ import {
   RefreshCw,
   Zap,
   ShieldAlert,
-  ArrowRight,
+  Activity,
 } from 'lucide-react';
 import { IntegrationStatus, OperationMode } from '../types.js';
 import { copyToClipboard, getWebhookUrl } from '../lib/clipboard.js';
-import { apiFetch, isExternalStaticHost, OFFICIAL_APP_URL } from '../lib/apiClient.js';
 
 interface SettingsPageProps {
   currentMode?: OperationMode;
@@ -31,6 +30,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  // Backend Health state
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'error'>('checking');
+  const [checkingHealth, setCheckingHealth] = useState(false);
 
   // Timezone state
   const [timezone, setTimezone] = useState('America/Bogota');
@@ -50,6 +53,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [hotmartTestResult, setHotmartTestResult] = useState<{
     success: boolean;
     message: string;
+    details?: string;
   } | null>(null);
 
   // Derive immediate live webhook URL so it's NEVER blank or empty
@@ -57,25 +61,46 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const activeMode: OperationMode = currentMode || status?.mode || 'monitor';
 
-  const fetchStatus = async () => {
+  const checkBackendHealth = useCallback(async () => {
+    setCheckingHealth(true);
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok === true || data.status === 'ok') {
+          setBackendStatus('connected');
+          return;
+        }
+      }
+      setBackendStatus('error');
+    } catch {
+      setBackendStatus('error');
+    } finally {
+      setCheckingHealth(false);
+    }
+  }, []);
+
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/integrations/status');
+      const res = await fetch('/api/integrations/status');
       if (res.ok) {
         const json = await res.json();
         setStatus(json);
         if (json.timezone) setTimezone(json.timezone);
+        setBackendStatus('connected');
       }
     } catch (e) {
       console.warn('Error fetching status:', e);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    checkBackendHealth();
     fetchStatus();
-  }, [currentMode]);
+  }, [checkBackendHealth, fetchStatus, currentMode]);
 
   const handleCopyWebhook = async () => {
     const success = await copyToClipboard(liveWebhookUrl);
@@ -91,7 +116,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setTzSuccess(false);
 
     try {
-      const res = await apiFetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ timezone }),
@@ -113,7 +138,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setMetaTestResult(null);
 
     try {
-      const res = await apiFetch('/api/integrations/meta/test', {
+      const res = await fetch('/api/integrations/meta/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -144,59 +169,57 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setHotmartTestResult(null);
 
     try {
-      const res = await apiFetch('/api/integrations/hotmart/test', {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const res = await fetch('/api/debug/test-hotmart-webhook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       const text = await res.text();
-      let json: { success?: boolean; message?: string } = {};
+      let json: { ok?: boolean; success?: boolean; message?: string; transactionId?: string; error?: string } = {};
       try {
         json = JSON.parse(text);
       } catch {
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`);
-        }
+        throw new Error(`Respuesta inválida del servidor (HTTP ${res.status}): ${text.slice(0, 100)}`);
       }
 
-      if (json.success !== false) {
+      if (res.ok && (json.ok || json.success)) {
         setHotmartTestResult({
           success: true,
-          message: json.message || '¡Prueba de webhook ejecutada y procesada exitosamente!',
+          message: json.message || 'Prueba recibida correctamente',
+          details: json.transactionId ? `Transacción de prueba registrada: ${json.transactionId}` : undefined,
         });
+        setBackendStatus('connected');
       } else {
+        const errMsg = json.error || json.message || `Error del servidor (HTTP ${res.status})`;
         setHotmartTestResult({
           success: false,
-          message: json.message || 'Error en la prueba de webhook',
+          message: errMsg,
         });
       }
 
       await fetchStatus();
       if (onRefreshData) onRefreshData();
     } catch (err: unknown) {
-      // If running on an external static domain where cross-origin POST is restricted, activate local fallback
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      
-      // Mark as connected in UI state so the user is not blocked
-      setStatus((prev) =>
-        prev
-          ? {
-              ...prev,
-              hotmart: {
-                ...prev.hotmart,
-                configured: true,
-                totalWebhooks: (prev.hotmart.totalWebhooks || 0) + 1,
-                lastWebhookReceived: new Date().toISOString(),
-              },
-            }
-          : null
-      );
-
+      let userMessage = 'Error al procesar prueba de webhook';
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        userMessage = 'Tiempo de espera agotado al conectar con el backend (Timeout 10s).';
+      } else if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('Load failed')) {
+          userMessage = 'No fue posible conectar con el backend. Verifica que el servidor esté activo.';
+        } else {
+          userMessage = err.message;
+        }
+      }
+      setBackendStatus('error');
       setHotmartTestResult({
-        success: true,
-        message: '¡Prueba simulada correctamente! Hotmart ha sido marcado como Conectado.',
+        success: false,
+        message: userMessage,
       });
-
-      if (onRefreshData) onRefreshData();
     } finally {
       setTestingHotmart(false);
     }
@@ -204,7 +227,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const handleVerifyHotmart = async () => {
     try {
-      const res = await apiFetch('/api/integrations/hotmart/verify', {
+      const res = await fetch('/api/integrations/hotmart/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -222,20 +245,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       });
       await fetchStatus();
       if (onRefreshData) onRefreshData();
-    } catch (e) {
-      // Fallback for external domain
-      setStatus((prev) =>
-        prev
-          ? {
-              ...prev,
-              hotmart: {
-                ...prev.hotmart,
-                configured: true,
-                lastWebhookReceived: new Date().toISOString(),
-              },
-            }
-          : null
-      );
+    } catch {
       setHotmartTestResult({
         success: true,
         message: '¡Hotmart ha sido marcado como conectado exitosamente!',
@@ -246,30 +256,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Vercel Host Notice */}
-      {isExternalStaticHost() && (
-        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5">
-            <Globe className="w-5 h-5 text-blue-600 shrink-0" />
-            <div>
-              <p className="font-bold">Estás visualizando la app desde Vercel (Frontend Estático)</p>
-              <p className="text-blue-700 text-[11px] mt-0.5">
-                El backend Express con base de datos activa y procesamiento en vivo corre en Google Cloud Run.
-              </p>
-            </div>
-          </div>
-          <a
-            href={OFFICIAL_APP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors shadow-xs"
-          >
-            <span>Abrir Servidor Completo</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
-        </div>
-      )}
-
       {/* Header */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -280,10 +266,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
 
         <button
-          onClick={fetchStatus}
+          onClick={() => {
+            fetchStatus();
+            checkBackendHealth();
+          }}
           className="p-2 px-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium flex items-center gap-2 cursor-pointer transition-colors self-start sm:self-auto"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading || checkingHealth ? 'animate-spin' : ''}`} />
           <span>Actualizar</span>
         </button>
       </div>
@@ -415,9 +404,41 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-slate-800">Verificación de Conexión y Recepción</p>
-              <p className="text-[11px] text-slate-500">
-                Prueba que tu endpoint recibe y procesa eventos de Hotmart correctamente.
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-slate-800">Verificación de Conexión y Recepción</p>
+                {/* Real-time Backend Health Indicator */}
+                <div className="flex items-center gap-1.5">
+                  {backendStatus === 'checking' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Backend: Comprobando...
+                    </span>
+                  )}
+                  {backendStatus === 'connected' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Backend: Conectado
+                    </span>
+                  )}
+                  {backendStatus === 'error' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                      Backend: Sin conexión
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={checkBackendHealth}
+                    disabled={checkingHealth}
+                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded transition-colors"
+                    title="Volver a comprobar estado del backend"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${checkingHealth ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Prueba que tu endpoint recibe y procesa eventos de Hotmart correctamente sin enviarlos a Meta.
               </p>
             </div>
 
@@ -429,7 +450,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors shrink-0"
               >
                 <Play className={`w-3.5 h-3.5 ${testingHotmart ? 'animate-spin' : ''}`} />
-                <span>{testingHotmart ? 'Probando...' : 'Enviar Prueba de Webhook'}</span>
+                <span>{testingHotmart ? 'Enviando prueba...' : 'Enviar Prueba de Webhook'}</span>
               </button>
 
               {!status?.hotmart.configured && (
@@ -457,9 +478,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               ) : (
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               )}
-              <div>
+              <div className="space-y-0.5">
                 <p className="font-bold">{hotmartTestResult.success ? 'Conexión Exitosa' : 'Error en la prueba'}</p>
-                <p className="mt-0.5">{hotmartTestResult.message}</p>
+                <p>{hotmartTestResult.message}</p>
+                {hotmartTestResult.details && (
+                  <p className="text-[11px] text-emerald-700 font-mono">{hotmartTestResult.details}</p>
+                )}
               </div>
             </div>
           )}
@@ -501,15 +525,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
 
         {/* Credentials Checklist */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
           <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-            <span className="text-slate-600 font-medium">HOTMART_CLIENT_ID (Opcional - Backfill):</span>
+            <span className="text-slate-600 font-medium">HOTMART_HOTTOK (Seguridad):</span>
+            <span className={`font-semibold ${status?.hotmart.hottokConfigured ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {status?.hotmart.hottokConfigured ? 'Protegido' : 'Opcional'}
+            </span>
+          </div>
+          <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
+            <span className="text-slate-600 font-medium">HOTMART_CLIENT_ID (Backfill):</span>
             <span className={`font-semibold ${status?.hotmart.clientIdPresent ? 'text-emerald-700' : 'text-slate-500'}`}>
               {status?.hotmart.clientIdPresent ? 'Presente' : 'No configurado'}
             </span>
           </div>
           <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-            <span className="text-slate-600 font-medium">HOTMART_CLIENT_SECRET (Opcional - Backfill):</span>
+            <span className="text-slate-600 font-medium">HOTMART_CLIENT_SECRET (Backfill):</span>
             <span className={`font-semibold ${status?.hotmart.clientSecretPresent ? 'text-emerald-700' : 'text-slate-500'}`}>
               {status?.hotmart.clientSecretPresent ? 'Presente' : 'No configurado'}
             </span>
@@ -660,8 +690,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <span className="text-slate-400 font-sans text-[11px]">ID del Dataset / Pixel en Meta Events Manager</span>
             </div>
             <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700">
-              <span className="text-emerald-400 font-bold block">HOTMART_CLIENT_ID / SECRET</span>
-              <span className="text-slate-400 font-sans text-[11px]">Credenciales de API Developers Hotmart (Opcional)</span>
+              <span className="text-emerald-400 font-bold block">HOTMART_HOTTOK</span>
+              <span className="text-slate-400 font-sans text-[11px]">Token de verificación de autenticidad para el Webhook</span>
             </div>
           </div>
         </div>

@@ -246,9 +246,16 @@ export const SalesPage: React.FC<SalesPageProps> = ({
                       {sale.productName || 'Producto Digital'}
                     </td>
                     <td onClick={() => onSelectSale(sale.id)} className="py-3.5 px-4 cursor-pointer">
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-medium capitalize">
-                        {sale.source === 'hotmart' ? 'Hotmart' : `Manual (${sale.manualOrigin || 'WSP'})`}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-medium capitalize">
+                          {sale.source === 'hotmart' ? 'Hotmart' : `Manual (${sale.manualOrigin || 'WSP'})`}
+                        </span>
+                        {sale.isTest && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            TEST
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td
                       onClick={() => onSelectSale(sale.id)}

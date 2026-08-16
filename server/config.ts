@@ -9,6 +9,7 @@ export interface ServerConfig {
   metaGraphApiVersion: string;
   hotmartClientId?: string;
   hotmartClientSecret?: string;
+  hotmartHottok?: string;
   appUrl: string;
   devUseMockData: boolean;
   isProduction: boolean;
@@ -23,6 +24,7 @@ export function getConfig(): ServerConfig {
     metaGraphApiVersion: process.env.META_GRAPH_API_VERSION?.trim() || 'v21.0',
     hotmartClientId: process.env.HOTMART_CLIENT_ID?.trim() || undefined,
     hotmartClientSecret: process.env.HOTMART_CLIENT_SECRET?.trim() || undefined,
+    hotmartHottok: process.env.HOTMART_HOTTOK?.trim() || undefined,
     appUrl: process.env.APP_URL || 'http://localhost:3000',
     devUseMockData: process.env.DEV_USE_MOCK_DATA === 'true',
     isProduction: process.env.NODE_ENV === 'production',

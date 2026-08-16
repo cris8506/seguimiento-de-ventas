@@ -9,9 +9,43 @@ import { maskEmail, maskPhone } from '../utils/mask.js';
 export const apiRouter = express.Router();
 
 // ----------------------------------------------------
+// 0. HEALTH CHECK ENDPOINT
+// ----------------------------------------------------
+apiRouter.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({
+    ok: true,
+    service: 'conversion-bridge',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ----------------------------------------------------
 // 1. PUBLIC WEBHOOK ENDPOINT (HOTMART)
 // ----------------------------------------------------
 apiRouter.post('/webhooks/hotmart', async (req: Request, res: Response) => {
+  const config = getConfig();
+
+  // Validate Hotmart Authenticity Token if configured
+  if (config.hotmartHottok) {
+    const incomingHottok =
+      req.headers['x-hotmart-hottok'] ||
+      req.headers['x-hotmart-token'] ||
+      req.headers['hottok'];
+
+    if (incomingHottok !== config.hotmartHottok) {
+      if (config.isProduction) {
+        console.warn('Unauthorized Hotmart webhook: HOTTOK token mismatch');
+        res.status(401).json({
+          received: false,
+          error: 'Token de autenticidad Hotmart (HOTTOK) inválido o ausente',
+        });
+        return;
+      } else {
+        console.warn('Development notice: HOTTOK token mismatch or missing, proceeding in dev mode');
+      }
+    }
+  }
+
   try {
     const result = await salesService.processHotmartWebhook(req.body);
     // Auto-mark Hotmart as configured upon receiving an event
@@ -45,6 +79,77 @@ apiRouter.get('/webhooks/hotmart', (req: Request, res: Response) => {
 
 apiRouter.head('/webhooks/hotmart', (req: Request, res: Response) => {
   res.status(200).end();
+});
+
+// ----------------------------------------------------
+// 1.1 INTERNAL DEBUG WEBHOOK TEST ENDPOINT
+// ----------------------------------------------------
+apiRouter.post('/debug/test-hotmart-webhook', async (_req: Request, res: Response) => {
+  try {
+    const now = Date.now();
+    const testTransactionId = `TEST_${now}`;
+
+    // Valid standard Hotmart test payload marked clearly as isTest
+    const testPayload = {
+      id: `wh_test_${now}`,
+      creation_date: now,
+      event: 'PURCHASE_APPROVED',
+      version: '2.0.0',
+      isTest: true,
+      data: {
+        product: {
+          id: 9999999,
+          name: 'Curso Digital de Prueba Hotmart',
+          ucode: 'PROD_TEST_HOTMART',
+        },
+        purchase: {
+          transaction: testTransactionId,
+          status: 'APPROVED',
+          order_date: now,
+          approved_date: now,
+          price: {
+            value: 10.0,
+            currency_value: 'USD',
+          },
+          payment: {
+            type: 'CREDIT_CARD',
+            installments_number: 1,
+          },
+        },
+        buyer: {
+          email: 'test@example.com',
+          name: 'Usuario de Prueba',
+          checkout_phone: '+15551234567',
+          address: {
+            country: 'Estados Unidos',
+            country_iso: 'US',
+          },
+        },
+      },
+    };
+
+    // Shared processing pipeline
+    const result = await salesService.processHotmartWebhook(testPayload, { isTest: true });
+    store.updateSettings({ hotmartConfigured: true });
+
+    res.status(200).json({
+      ok: true,
+      success: true,
+      isTest: true,
+      message: 'Prueba recibida correctamente',
+      transactionId: testTransactionId,
+      receivedAt: new Date().toISOString(),
+      action: result.action,
+      sale: result.sale,
+    });
+  } catch (err: unknown) {
+    console.error('Error executing debug webhook test:', err);
+    res.status(500).json({
+      ok: false,
+      success: false,
+      message: err instanceof Error ? err.message : 'Error interno al ejecutar prueba de webhook',
+    });
+  }
 });
 
 // ----------------------------------------------------
@@ -358,6 +463,7 @@ apiRouter.get('/integrations/status', (req: Request, res: Response) => {
       configured: settings.hotmartConfigured,
       clientIdPresent: Boolean(config.hotmartClientId),
       clientSecretPresent: Boolean(config.hotmartClientSecret),
+      hottokConfigured: Boolean(config.hotmartHottok),
       lastWebhookReceived: webhooks[0]?.receivedAt,
       totalWebhooks: store.getWebhookEvents(1000).length,
     },
@@ -379,11 +485,14 @@ apiRouter.get('/integrations/status', (req: Request, res: Response) => {
 // ----------------------------------------------------
 apiRouter.post('/integrations/hotmart/test', async (req: Request, res: Response) => {
   try {
+    const now = Date.now();
+    const testTransactionId = `TEST_${now}`;
     const testPayload = req.body && Object.keys(req.body).length > 0 ? req.body : {
-      id: `test_wh_${Date.now()}`,
-      creation_date: Date.now(),
+      id: `wh_test_${now}`,
+      creation_date: now,
       event: 'PURCHASE_APPROVED',
       version: '2.0.0',
+      isTest: true,
       data: {
         product: {
           id: 9876543,
@@ -391,12 +500,12 @@ apiRouter.post('/integrations/hotmart/test', async (req: Request, res: Response)
           ucode: 'PROD_TEST_123',
         },
         purchase: {
-          transaction: `HP-TEST-${Date.now().toString().slice(-6)}`,
+          transaction: testTransactionId,
           status: 'APPROVED',
-          order_date: Date.now(),
-          approved_date: Date.now(),
+          order_date: now,
+          approved_date: now,
           price: {
-            value: 97.00,
+            value: 10.00,
             currency_value: 'USD',
           },
           payment: {
@@ -405,9 +514,9 @@ apiRouter.post('/integrations/hotmart/test', async (req: Request, res: Response)
           },
         },
         buyer: {
-          email: 'comprador.prueba@ejemplo.com',
+          email: 'test@example.com',
           name: 'Comprador de Prueba',
-          checkout_phone: '+573001234567',
+          checkout_phone: '+15551234567',
           address: {
             country: 'Colombia',
             country_iso: 'CO',
@@ -416,17 +525,22 @@ apiRouter.post('/integrations/hotmart/test', async (req: Request, res: Response)
       },
     };
 
-    const result = await salesService.processHotmartWebhook(testPayload);
+    const result = await salesService.processHotmartWebhook(testPayload, { isTest: true });
     store.updateSettings({ hotmartConfigured: true });
 
     res.json({
+      ok: true,
       success: true,
-      message: '¡Prueba de Webhook recibida y procesada correctamente! La conexión con Hotmart está activa y verificada.',
+      isTest: true,
+      message: 'Prueba recibida correctamente',
+      transactionId: testTransactionId,
+      receivedAt: new Date().toISOString(),
       action: result.action,
       sale: result.sale,
     });
   } catch (err: unknown) {
     res.status(500).json({
+      ok: false,
       success: false,
       message: err instanceof Error ? err.message : 'Error al procesar prueba de webhook',
     });

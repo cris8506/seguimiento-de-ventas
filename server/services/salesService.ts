@@ -9,6 +9,11 @@ export class SalesService {
    * Fundamental Rule 51: Centralized decision function for auto-sending conversions to Meta.
    */
   shouldSendPurchase(sale: Sale, settings: AppSettings): boolean {
+    // 0. Test events must NEVER be sent to Meta
+    if (sale.isTest || sale.transactionId?.startsWith('TEST_')) {
+      return false;
+    }
+
     // 1. Must be in ACTIVE mode
     if (settings.mode !== 'active') {
       return false;
@@ -51,12 +56,19 @@ export class SalesService {
   /**
    * Processes an incoming Hotmart Webhook with complete idempotency and state management.
    */
-  async processHotmartWebhook(rawBody: any): Promise<{
+  async processHotmartWebhook(rawBody: any, options?: { isTest?: boolean }): Promise<{
     processed: boolean;
     action: string;
     sale?: Sale;
     message: string;
   }> {
+    const isTest = Boolean(
+      options?.isTest ||
+      rawBody?.isTest ||
+      (typeof rawBody?.data?.purchase?.transaction === 'string' && rawBody.data.purchase.transaction.startsWith('TEST_')) ||
+      (typeof rawBody?.transaction === 'string' && rawBody.transaction.startsWith('TEST_'))
+    );
+
     const parsed = hotmartService.parseWebhookPayload(rawBody);
     const settings = store.getSettings();
 
@@ -73,6 +85,7 @@ export class SalesService {
       processed: false,
       payloadSanitized: parsed.sanitizedPayload,
       payloadHash,
+      isTest,
     });
 
     if (!parsed.isValid || !parsed.transactionId) {
@@ -170,7 +183,7 @@ export class SalesService {
       transactionId,
       metaEventId,
       productId: parsed.productId,
-      productName: parsed.productName || 'Producto Hotmart',
+      productName: parsed.productName || (isTest ? 'Producto de Prueba Hotmart' : 'Producto Hotmart'),
       buyer: parsed.buyer || {},
       amount: parsed.amount || 0,
       currency: (parsed.currency || 'USD').toUpperCase(),
@@ -178,6 +191,8 @@ export class SalesService {
       hotmartStatus: parsed.hotmartStatus || 'approved',
       metaStatus: 'not_sent',
       sendAttempts: 0,
+      isTest,
+      notes: isTest ? 'Evento de prueba interna (no enviado a Meta)' : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -186,13 +201,25 @@ export class SalesService {
 
     store.logActivity({
       type: 'webhook_received',
-      message: `Nueva venta registrada de Hotmart: ${transactionId} (${newSale.amount} ${newSale.currency})`,
+      message: isTest
+        ? `[PRUEBA] Webhook de prueba recibido: ${transactionId} (${newSale.amount} ${newSale.currency}) - No se envía a Meta`
+        : `Nueva venta registrada de Hotmart: ${transactionId} (${newSale.amount} ${newSale.currency})`,
       transactionId,
       saleId: newSale.id,
       metaEventId,
     });
 
-    // 4. If MODO ACTIVO and should send, dispatch immediately
+    // 4. Test events are NEVER dispatched to Meta
+    if (isTest) {
+      return {
+        processed: true,
+        action: 'test_processed',
+        sale: newSale,
+        message: 'Prueba recibida correctamente',
+      };
+    }
+
+    // 5. If MODO ACTIVO and should send, dispatch immediately
     if (this.shouldSendPurchase(newSale, settings)) {
       const dispatched = await this.dispatchSaleToMeta(newSale.id);
       return {

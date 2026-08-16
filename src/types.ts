@@ -58,6 +58,7 @@ export interface Sale {
   notes?: string;
   manualOrigin?: string;
   duplicateBlocked?: boolean;
+  isTest?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +73,7 @@ export interface WebhookEvent {
   processingResult?: string;
   payloadSanitized: Record<string, unknown>;
   payloadHash?: string;
+  isTest?: boolean;
 }
 
 export interface MetaAttempt {
