@@ -315,15 +315,25 @@ apiRouter.post('/hotmart/sync', async (req: Request, res: Response) => {
   }
 });
 
+function getRequestWebhookUrl(req: Request): string {
+  const config = getConfig();
+  if (process.env.APP_URL && process.env.APP_URL !== 'http://localhost:3000') {
+    return `${process.env.APP_URL.replace(/\/$/, '')}/api/webhooks/hotmart`;
+  }
+  const protoHeader = req.headers['x-forwarded-proto'];
+  const proto = (typeof protoHeader === 'string' ? protoHeader.split(',')[0].trim() : undefined) || req.protocol || 'https';
+  const hostHeader = req.headers['x-forwarded-host'];
+  const host = (typeof hostHeader === 'string' ? hostHeader.split(',')[0].trim() : undefined) || req.get('host') || 'localhost:3000';
+  return `${proto}://${host}/api/webhooks/hotmart`;
+}
+
 // ----------------------------------------------------
 // 10. INTEGRATION STATUS & CREDENTIALS AUDIT
 // ----------------------------------------------------
 apiRouter.get('/integrations/status', (req: Request, res: Response) => {
   const config = getConfig();
   const settings = store.getSettings();
-
-  const appUrl = config.appUrl.replace(/\/$/, '');
-  const webhookUrl = `${appUrl}/api/webhooks/hotmart`;
+  const webhookUrl = getRequestWebhookUrl(req);
 
   res.json({
     hotmart: {
@@ -370,8 +380,7 @@ apiRouter.get('/diagnostics', (req: Request, res: Response) => {
   const webhooks = store.getWebhookEvents(5);
   const sales = store.listSales({ limit: 1000 }).items;
 
-  const appUrl = config.appUrl.replace(/\/$/, '');
-  const webhookUrl = `${appUrl}/api/webhooks/hotmart`;
+  const webhookUrl = getRequestWebhookUrl(req);
 
   const lastWebhook = webhooks[0];
   const lastApprovedWebhook = webhooks.find((w) => w.eventType.includes('APPROVED') || w.eventType.includes('PURCHASE'));

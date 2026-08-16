@@ -10,6 +10,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { DiagnosticsData } from '../types.js';
+import { copyToClipboard, getWebhookUrl } from '../lib/clipboard.js';
 
 export const DiagnosticsPage: React.FC = () => {
   const [data, setData] = useState<DiagnosticsData | null>(null);
@@ -35,9 +36,11 @@ export const DiagnosticsPage: React.FC = () => {
     fetchDiagnostics();
   }, []);
 
-  const handleCopyWebhook = () => {
-    if (data?.hotmart.webhookUrl) {
-      navigator.clipboard.writeText(data.hotmart.webhookUrl);
+  const liveWebhookUrl = getWebhookUrl(data?.hotmart.webhookUrl);
+
+  const handleCopyWebhook = async () => {
+    const success = await copyToClipboard(liveWebhookUrl);
+    if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -85,15 +88,21 @@ export const DiagnosticsPage: React.FC = () => {
                   <input
                     type="text"
                     readOnly
-                    value={data?.hotmart.webhookUrl || ''}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs text-slate-800"
+                    value={liveWebhookUrl}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs text-slate-800 font-semibold select-all"
                   />
                   <button
                     onClick={handleCopyWebhook}
-                    className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 shrink-0 cursor-pointer transition-colors"
+                    className={`p-2 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold shrink-0 cursor-pointer transition-all ${
+                      copied
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                    }`}
                     title="Copiar URL"
                   >
-                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <span>{copied ? '¡Copiado!' : 'Copiar'}</span>
                   </button>
                 </div>
               </div>
@@ -148,8 +157,8 @@ export const DiagnosticsPage: React.FC = () => {
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Configurado
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 bg-rose-50 text-rose-700 text-xs font-semibold rounded-full border border-rose-100 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Pendiente META_ACCESS_TOKEN
+                  <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 text-xs font-semibold rounded-full border border-amber-200 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Credenciales requeridas
                   </span>
                 )}
               </div>

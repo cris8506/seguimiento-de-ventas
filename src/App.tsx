@@ -220,7 +220,11 @@ function MainAppContent() {
           {currentTab === 'diagnostics' && <DiagnosticsPage />}
 
           {currentTab === 'settings' && (
-            <SettingsPage onOpenModeChange={() => setModeChangeOpen(true)} />
+            <SettingsPage
+              currentMode={metrics?.integrationStatus.mode || 'monitor'}
+              onOpenModeChange={() => setModeChangeOpen(true)}
+              onRefreshData={() => fetchDashboardData()}
+            />
           )}
         </main>
       </div>
