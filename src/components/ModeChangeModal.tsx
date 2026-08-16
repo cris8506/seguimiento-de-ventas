@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert, CheckCircle2, ShieldCheck, Activity, AlertTriangle } from 'lucide-react';
 import { OperationMode } from '../types.js';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface ModeChangeModalProps {
   isOpen: boolean;
@@ -43,7 +44,7 @@ export const ModeChangeModal: React.FC<ModeChangeModalProps> = ({
     setError(null);
 
     try {
-      const res = await fetch('/api/settings', {
+      const res = await apiFetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: modeToSave }),

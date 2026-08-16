@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { ActivityLogItem } from '../types.js';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface ActivityPageProps {
   onSelectSale?: (saleId: string) => void;
@@ -23,7 +24,7 @@ export const ActivityPage: React.FC<ActivityPageProps> = ({ onSelectSale }) => {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/activity?limit=100');
+      const res = await apiFetch('/api/activity?limit=100');
       if (res.ok) {
         const data = await res.json();
         setLogs(data.items || []);

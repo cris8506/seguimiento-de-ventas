@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Send, RefreshCw, Eye, EyeOff, ShieldCheck, AlertCircle, CheckCircle2, Clock, Ban } from 'lucide-react';
 import { Sale, MetaAttempt } from '../types.js';
 import { MetaStatusBadge, HotmartStatusBadge } from './StatusBadge.js';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface SaleDetailModalProps {
   saleId: string | null;
@@ -28,7 +29,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    fetch(`/api/sales/${saleId}`)
+    apiFetch(`/api/sales/${saleId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.sale) {
@@ -54,7 +55,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/sales/${sale.id}/send-meta`, {
+      const res = await apiFetch(`/api/sales/${sale.id}/send-meta`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -69,7 +70,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       setSuccessMsg('¡Conversión Purchase enviada y recibida exitosamente por Meta!');
 
       // Refresh attempts
-      const freshRes = await fetch(`/api/sales/${sale.id}`);
+      const freshRes = await apiFetch(`/api/sales/${sale.id}`);
       const freshData = await freshRes.json();
       if (freshData.attempts) setAttempts(freshData.attempts);
     } catch (err: unknown) {
@@ -86,7 +87,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/sales/${sale.id}/retry`, {
+      const res = await apiFetch(`/api/sales/${sale.id}/retry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -100,7 +101,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       onSaleUpdated(data.sale);
       setSuccessMsg('Reintento completado con el mismo event_id.');
 
-      const freshRes = await fetch(`/api/sales/${sale.id}`);
+      const freshRes = await apiFetch(`/api/sales/${sale.id}`);
       const freshData = await freshRes.json();
       if (freshData.attempts) setAttempts(freshData.attempts);
     } catch (err: unknown) {

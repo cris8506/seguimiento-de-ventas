@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShieldAlert, Check, ArrowRight, ArrowLeft, Send, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { Sale } from '../types.js';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface AddManualSaleModalProps {
   isOpen: boolean;
@@ -70,7 +71,7 @@ export const AddManualSaleModal: React.FC<AddManualSaleModalProps> = ({
     // Check potential duplicate against API
     try {
       setLoading(true);
-      const res = await fetch('/api/sales?limit=50');
+      const res = await apiFetch('/api/sales?limit=50');
       if (res.ok) {
         const data = await res.json();
         const sales: Sale[] = data.items || [];
@@ -125,7 +126,7 @@ export const AddManualSaleModal: React.FC<AddManualSaleModalProps> = ({
         forceDuplicate: forceDuplicateConsent,
       };
 
-      const res = await fetch('/api/sales/manual', {
+      const res = await apiFetch('/api/sales/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -142,7 +143,7 @@ export const AddManualSaleModal: React.FC<AddManualSaleModalProps> = ({
       // If user chose to send immediately to Meta
       if (sendImmediately && createdSale.id) {
         try {
-          const metaRes = await fetch(`/api/sales/${createdSale.id}/send-meta`, {
+          const metaRes = await apiFetch(`/api/sales/${createdSale.id}/send-meta`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
           });

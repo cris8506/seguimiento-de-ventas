@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { IntegrationStatus, OperationMode } from '../types.js';
 import { copyToClipboard, getWebhookUrl } from '../lib/clipboard.js';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface SettingsPageProps {
   currentMode?: OperationMode;
@@ -59,7 +60,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const fetchStatus = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/integrations/status');
+      const res = await apiFetch('/api/integrations/status');
       if (res.ok) {
         const json = await res.json();
         setStatus(json);
@@ -90,7 +91,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setTzSuccess(false);
 
     try {
-      const res = await fetch('/api/settings', {
+      const res = await apiFetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ timezone }),
@@ -112,7 +113,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setMetaTestResult(null);
 
     try {
-      const res = await fetch('/api/integrations/meta/test', {
+      const res = await apiFetch('/api/integrations/meta/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -143,7 +144,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setHotmartTestResult(null);
 
     try {
-      const res = await fetch('/api/integrations/hotmart/test', {
+      const res = await apiFetch('/api/integrations/hotmart/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -174,7 +175,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const handleVerifyHotmart = async () => {
     try {
-      const res = await fetch('/api/integrations/hotmart/verify', {
+      const res = await apiFetch('/api/integrations/hotmart/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

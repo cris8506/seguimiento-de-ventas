@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Sale } from '../types.js';
 import { MetaStatusBadge, HotmartStatusBadge } from '../components/StatusBadge.js';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface SalesPageProps {
   onSelectSale: (saleId: string) => void;
@@ -52,7 +53,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({
       params.append('page', String(page));
       params.append('limit', '20');
 
-      const res = await fetch(`/api/sales?${params.toString()}`);
+      const res = await apiFetch(`/api/sales?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setSales(data.items || []);

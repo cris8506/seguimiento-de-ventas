@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Zap, CheckCircle2, AlertCircle, Play, Code2 } from 'lucide-react';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface WebhookSimulatorModalProps {
   isOpen: boolean;
@@ -33,7 +34,7 @@ export const WebhookSimulatorModal: React.FC<WebhookSimulatorModalProps> = ({
     setResult(null);
 
     try {
-      const res = await fetch('/api/dev/simulate-webhook', {
+      const res = await apiFetch('/api/dev/simulate-webhook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, RefreshCw, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
+import { apiFetch } from '../lib/apiClient.js';
 
 interface HotmartSyncModalProps {
   isOpen: boolean;
@@ -37,7 +38,7 @@ export const HotmartSyncModal: React.FC<HotmartSyncModalProps> = ({
     setSummary(null);
 
     try {
-      const res = await fetch('/api/hotmart/sync', {
+      const res = await apiFetch('/api/hotmart/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { DiagnosticsData } from '../types.js';
 import { copyToClipboard, getWebhookUrl } from '../lib/clipboard.js';
+import { apiFetch } from '../lib/apiClient.js';
 
 export const DiagnosticsPage: React.FC = () => {
   const [data, setData] = useState<DiagnosticsData | null>(null);
@@ -20,7 +21,7 @@ export const DiagnosticsPage: React.FC = () => {
   const fetchDiagnostics = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/diagnostics');
+      const res = await apiFetch('/api/diagnostics');
       if (res.ok) {
         const json = await res.json();
         setData(json);

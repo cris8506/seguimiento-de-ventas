@@ -14,6 +14,7 @@ import { DiagnosticsPage } from './pages/DiagnosticsPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { DashboardMetrics, Sale, OperationMode } from './types.js';
 import { ShieldCheck, LogIn, Lock, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { apiFetch } from './lib/apiClient.js';
 
 function MainAppContent() {
   const { user, adminEmail, isAuthorized, loading: authLoading, signInWithGoogle, devBypassLogin, logout } = useAuth();
@@ -38,8 +39,8 @@ function MainAppContent() {
     setDataLoading(true);
     try {
       const [dashRes, salesRes] = await Promise.all([
-        fetch('/api/dashboard'),
-        fetch('/api/sales?limit=10'),
+        apiFetch('/api/dashboard'),
+        apiFetch('/api/sales?limit=10'),
       ]);
 
       if (dashRes.ok) {

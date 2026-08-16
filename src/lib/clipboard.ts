@@ -35,19 +35,26 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
+const CLOUD_RUN_BACKEND = 'https://ais-pre-r4l5kat4iomj5vyl4hvkey-455988317613.us-east1.run.app';
+
 /**
  * Resolves the real absolute Webhook URL for Hotmart
  */
 export function getWebhookUrl(serverReportedUrl?: string): string {
-  // If a server-reported URL exists and is a valid HTTPS endpoint
+  // If a server-reported URL exists and is a valid HTTPS endpoint from Cloud Run
   if (serverReportedUrl && serverReportedUrl.startsWith('http') && !serverReportedUrl.includes('localhost') && !serverReportedUrl.includes('127.0.0.1')) {
     return serverReportedUrl;
   }
-  if (typeof window !== 'undefined' && window.location?.origin) {
+  if (typeof window !== 'undefined') {
     const origin = window.location.origin;
+    const hostname = window.location.hostname;
+    // If user is accessing from static frontend on Vercel/Netlify, webhook must point to live Cloud Run backend
+    if (hostname.includes('vercel.app') || hostname.includes('netlify.app') || hostname.includes('github.io')) {
+      return `${CLOUD_RUN_BACKEND}/api/webhooks/hotmart`;
+    }
     if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
       return `${origin}/api/webhooks/hotmart`;
     }
   }
-  return serverReportedUrl || '/api/webhooks/hotmart';
+  return `${CLOUD_RUN_BACKEND}/api/webhooks/hotmart`;
 }
