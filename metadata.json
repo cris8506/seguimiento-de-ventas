@@ -1,0 +1,6 @@
+{
+  "name": "Conversion Bridge",
+  "description": "Capa privada de control y envío de conversiones de ventas desde Hotmart hacia Meta Conversions API",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
