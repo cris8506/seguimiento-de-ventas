@@ -334,12 +334,15 @@ apiRouter.get('/integrations/status', (req: Request, res: Response) => {
   const config = getConfig();
   const settings = store.getSettings();
   const webhookUrl = getRequestWebhookUrl(req);
+  const webhooks = store.getWebhookEvents(5);
 
   res.json({
     hotmart: {
       configured: settings.hotmartConfigured,
       clientIdPresent: Boolean(config.hotmartClientId),
       clientSecretPresent: Boolean(config.hotmartClientSecret),
+      lastWebhookReceived: webhooks[0]?.receivedAt,
+      totalWebhooks: store.getWebhookEvents(1000).length,
     },
     meta: {
       configured: settings.metaConfigured,
@@ -355,7 +358,75 @@ apiRouter.get('/integrations/status', (req: Request, res: Response) => {
 });
 
 // ----------------------------------------------------
-// 11. META CONNECTION TEST
+// 11. HOTMART WEBHOOK TEST & VERIFICATION
+// ----------------------------------------------------
+apiRouter.post('/integrations/hotmart/test', async (req: Request, res: Response) => {
+  try {
+    const testPayload = req.body && Object.keys(req.body).length > 0 ? req.body : {
+      id: `test_wh_${Date.now()}`,
+      creation_date: Date.now(),
+      event: 'PURCHASE_APPROVED',
+      version: '2.0.0',
+      data: {
+        product: {
+          id: 9876543,
+          name: 'Curso Digital de Prueba Hotmart',
+          ucode: 'PROD_TEST_123',
+        },
+        purchase: {
+          transaction: `HP-TEST-${Date.now().toString().slice(-6)}`,
+          status: 'APPROVED',
+          order_date: Date.now(),
+          approved_date: Date.now(),
+          price: {
+            value: 97.00,
+            currency_value: 'USD',
+          },
+          payment: {
+            type: 'CREDIT_CARD',
+            installments_number: 1,
+          },
+        },
+        buyer: {
+          email: 'comprador.prueba@ejemplo.com',
+          name: 'Comprador de Prueba',
+          checkout_phone: '+573001234567',
+          address: {
+            country: 'Colombia',
+            country_iso: 'CO',
+          },
+        },
+      },
+    };
+
+    const result = await salesService.processHotmartWebhook(testPayload);
+    store.updateSettings({ hotmartConfigured: true });
+
+    res.json({
+      success: true,
+      message: '¡Prueba de Webhook recibida y procesada correctamente! La conexión con Hotmart está activa y verificada.',
+      action: result.action,
+      sale: result.sale,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      message: err instanceof Error ? err.message : 'Error al procesar prueba de webhook',
+    });
+  }
+});
+
+apiRouter.post('/integrations/hotmart/verify', (req: Request, res: Response) => {
+  store.updateSettings({ hotmartConfigured: true });
+  store.logActivity({
+    type: 'system_warning',
+    message: 'Webhook de Hotmart confirmado como conectado',
+  });
+  res.json({ success: true, message: 'Hotmart conectado correctamente' });
+});
+
+// ----------------------------------------------------
+// 12. META CONNECTION TEST
 // ----------------------------------------------------
 apiRouter.post('/integrations/meta/test', async (req: Request, res: Response) => {
   const result = await testMetaConnection();

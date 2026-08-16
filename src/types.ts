@@ -141,6 +141,8 @@ export interface IntegrationStatus {
     clientIdPresent: boolean;
     clientSecretPresent: boolean;
     lastSync?: string;
+    lastWebhookReceived?: string;
+    totalWebhooks?: number;
   };
   meta: {
     configured: boolean;
@@ -152,6 +154,7 @@ export interface IntegrationStatus {
   };
   adminEmail: string;
   mode: OperationMode;
+  timezone?: string;
   webhookUrl: string;
 }
 

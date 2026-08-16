@@ -44,6 +44,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     datasetName?: string;
   } | null>(null);
 
+  // Hotmart Webhook Test & Verify state
+  const [testingHotmart, setTestingHotmart] = useState(false);
+  const [hotmartTestResult, setHotmartTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
   // Derive immediate live webhook URL so it's NEVER blank or empty
   const liveWebhookUrl = getWebhookUrl(status?.webhookUrl);
 
@@ -118,6 +125,48 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       });
     } finally {
       setTestingMeta(false);
+    }
+  };
+
+  const handleTestHotmart = async () => {
+    setTestingHotmart(true);
+    setHotmartTestResult(null);
+
+    try {
+      const res = await fetch('/api/integrations/hotmart/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const json = await res.json();
+      setHotmartTestResult(json);
+      await fetchStatus();
+      if (onRefreshData) onRefreshData();
+    } catch (err: unknown) {
+      setHotmartTestResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Error al verificar recepción de webhook',
+      });
+    } finally {
+      setTestingHotmart(false);
+    }
+  };
+
+  const handleVerifyHotmart = async () => {
+    try {
+      const res = await fetch('/api/integrations/hotmart/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        setHotmartTestResult({
+          success: true,
+          message: '¡Hotmart ha sido marcado como conectado exitosamente!',
+        });
+        await fetchStatus();
+        if (onRefreshData) onRefreshData();
+      }
+    } catch (e) {
+      console.warn(e);
     }
   };
 
@@ -208,13 +257,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <div className={`w-2.5 h-2.5 rounded-full ${status?.hotmart.configured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
             <h3 className="text-sm font-bold text-slate-800">Webhook de Hotmart (Recepción de Ventas)</h3>
           </div>
 
-          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-100 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Endpoint Listo
-          </span>
+          {status?.hotmart.configured ? (
+            <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-100 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Conectado
+            </span>
+          ) : (
+            <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 text-xs font-semibold rounded-full border border-amber-200 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Esperando Webhook
+            </span>
+          )}
         </div>
 
         {/* Webhook URL configuration */}
@@ -258,6 +313,78 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </p>
         </div>
 
+        {/* Testing & Verification Action Box */}
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-slate-800">Verificación de Conexión y Recepción</p>
+              <p className="text-[11px] text-slate-500">
+                Prueba que tu endpoint recibe y procesa eventos de Hotmart correctamente.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                id="btn-test-hotmart-webhook"
+                onClick={handleTestHotmart}
+                disabled={testingHotmart}
+                className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors shrink-0"
+              >
+                <Play className={`w-3.5 h-3.5 ${testingHotmart ? 'animate-spin' : ''}`} />
+                <span>{testingHotmart ? 'Probando...' : 'Enviar Prueba de Webhook'}</span>
+              </button>
+
+              {!status?.hotmart.configured && (
+                <button
+                  id="btn-verify-hotmart-manual"
+                  onClick={handleVerifyHotmart}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-white text-slate-700 text-xs font-semibold cursor-pointer shadow-xs transition-colors shrink-0"
+                >
+                  Ya lo configuré en Hotmart
+                </button>
+              )}
+            </div>
+          </div>
+
+          {hotmartTestResult && (
+            <div
+              className={`p-3 rounded-lg border text-xs flex items-start gap-2.5 animate-fadeIn ${
+                hotmartTestResult.success
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                  : 'bg-rose-50 text-rose-900 border-rose-200'
+              }`}
+            >
+              {hotmartTestResult.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              )}
+              <div>
+                <p className="font-bold">{hotmartTestResult.success ? 'Conexión Exitosa' : 'Error en la prueba'}</p>
+                <p className="mt-0.5">{hotmartTestResult.message}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Webhook Activity Snapshot */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/80">
+            <div className="flex items-center justify-between text-slate-600">
+              <span>Último webhook recibido:</span>
+              <span className="font-mono text-slate-800 font-semibold">
+                {status?.hotmart.lastWebhookReceived
+                  ? new Date(status.hotmart.lastWebhookReceived).toLocaleString()
+                  : 'Ninguno todavía'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-slate-600">
+              <span>Total eventos recibidos:</span>
+              <span className="font-mono text-slate-800 font-semibold">
+                {status?.hotmart.totalWebhooks ?? 0}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Hotmart Setup Instructions */}
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-2.5">
           <div className="flex items-center gap-1.5 font-bold text-slate-900">
@@ -278,13 +405,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {/* Credentials Checklist */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
           <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-            <span className="text-slate-600 font-medium">HOTMART_CLIENT_ID (Opcional):</span>
+            <span className="text-slate-600 font-medium">HOTMART_CLIENT_ID (Opcional - Backfill):</span>
             <span className={`font-semibold ${status?.hotmart.clientIdPresent ? 'text-emerald-700' : 'text-slate-500'}`}>
               {status?.hotmart.clientIdPresent ? 'Presente' : 'No configurado'}
             </span>
           </div>
           <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-            <span className="text-slate-600 font-medium">HOTMART_CLIENT_SECRET (Opcional):</span>
+            <span className="text-slate-600 font-medium">HOTMART_CLIENT_SECRET (Opcional - Backfill):</span>
             <span className={`font-semibold ${status?.hotmart.clientSecretPresent ? 'text-emerald-700' : 'text-slate-500'}`}>
               {status?.hotmart.clientSecretPresent ? 'Presente' : 'No configurado'}
             </span>

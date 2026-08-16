@@ -224,11 +224,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <span className="text-slate-600 font-medium">Hotmart Webhook & API</span>
               {hotmartOk ? (
                 <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-100 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Conectado
                 </span>
               ) : (
-                <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-xs font-medium rounded-full border border-slate-200">
-                  Pendiente Secrets
+                <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 text-xs font-medium rounded-full border border-amber-200 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Esperando Webhook
                 </span>
               )}
             </div>

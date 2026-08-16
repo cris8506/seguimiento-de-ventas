@@ -66,7 +66,10 @@ class DataStore {
   // --- SETTINGS ---
   getSettings(): AppSettings {
     const config = getConfig();
-    const hotmartConfigured = Boolean(config.hotmartClientId && config.hotmartClientSecret);
+    const hasWebhookEvents = Object.keys(this.data.webhook_events).length > 0;
+    const hasHotmartSales = Object.values(this.data.sales).some((s) => s.source === 'hotmart');
+    const hasOAuthCreds = Boolean(config.hotmartClientId && config.hotmartClientSecret);
+    const hotmartConfigured = Boolean(this.data.settings.hotmartConfigured || hasWebhookEvents || hasHotmartSales || hasOAuthCreds);
     const metaConfigured = Boolean(config.metaAccessToken && config.metaDatasetId);
 
     return {
@@ -249,6 +252,7 @@ class DataStore {
   // --- WEBHOOK EVENTS ---
   saveWebhookEvent(event: WebhookEvent): WebhookEvent {
     this.data.webhook_events[event.id] = event;
+    this.data.settings.hotmartConfigured = true;
     this.persist();
     return event;
   }

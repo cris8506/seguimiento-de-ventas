@@ -50,17 +50,21 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Hotmart Status */}
         <div
           id="status-header-hotmart"
-          className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700"
-          title={hotmartConfigured ? 'API de Hotmart configurada' : 'Faltan credenciales de Hotmart API'}
+          className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
+            hotmartConfigured
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+          }`}
+          title={hotmartConfigured ? 'Webhook de Hotmart activo y conectado' : 'Esperando primer webhook o prueba de Hotmart'}
         >
-          <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">Hotmart:</span>
+          <span className="font-semibold uppercase text-[10px] tracking-wider opacity-75">Hotmart:</span>
           {hotmartConfigured ? (
-            <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado
+            <span className="flex items-center gap-1 font-semibold text-emerald-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Conectado
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-slate-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> No configurado
+            <span className="flex items-center gap-1 font-medium text-amber-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pendiente
             </span>
           )}
         </div>
@@ -68,17 +72,21 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Meta Status */}
         <div
           id="status-header-meta"
-          className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700"
+          className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
+            metaConfigured
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-slate-50 border-slate-200 text-slate-700'
+          }`}
           title={metaConfigured ? 'Meta Conversions API configurada' : 'Falta META_ACCESS_TOKEN o DATASET_ID'}
         >
-          <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">Meta CAPI:</span>
+          <span className="font-semibold uppercase text-[10px] tracking-wider opacity-75">Meta CAPI:</span>
           {metaConfigured ? (
-            <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado
+            <span className="flex items-center gap-1 font-semibold text-emerald-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Conectado
             </span>
           ) : (
             <span className="flex items-center gap-1 text-slate-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> No configurado
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Pendiente
             </span>
           )}
         </div>
