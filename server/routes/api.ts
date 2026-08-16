@@ -14,6 +14,8 @@ export const apiRouter = express.Router();
 apiRouter.post('/webhooks/hotmart', async (req: Request, res: Response) => {
   try {
     const result = await salesService.processHotmartWebhook(req.body);
+    // Auto-mark Hotmart as configured upon receiving an event
+    store.updateSettings({ hotmartConfigured: true });
     // Respond HTTP 200 to Hotmart promptly
     res.status(200).json({
       received: true,
@@ -28,6 +30,21 @@ apiRouter.post('/webhooks/hotmart', async (req: Request, res: Response) => {
       error: err instanceof Error ? err.message : 'Error interno al procesar webhook',
     });
   }
+});
+
+// GET & HEAD endpoint for webhook verification & health checks
+apiRouter.get('/webhooks/hotmart', (req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'online',
+    service: 'Hotmart Webhook Receiver',
+    endpoint: '/api/webhooks/hotmart',
+    ready: true,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+apiRouter.head('/webhooks/hotmart', (req: Request, res: Response) => {
+  res.status(200).end();
 });
 
 // ----------------------------------------------------

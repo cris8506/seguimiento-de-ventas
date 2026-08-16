@@ -116,7 +116,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(
+          !res.ok
+            ? `Error del servidor (HTTP ${res.status}): ${text.slice(0, 100)}`
+            : 'Respuesta inválida del servidor'
+        );
+      }
       setMetaTestResult(json);
     } catch (err: unknown) {
       setMetaTestResult({
@@ -137,7 +147,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(
+          !res.ok
+            ? `Error HTTP ${res.status}: Si estás accediendo desde un hosting estático (ej. Vercel), la URL de API backend debe ser la del servidor Cloud Run.`
+            : `Respuesta inesperada: ${text.slice(0, 120)}`
+        );
+      }
+
       setHotmartTestResult(json);
       await fetchStatus();
       if (onRefreshData) onRefreshData();
@@ -157,16 +178,32 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      if (res.ok) {
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { success: res.ok };
+      }
+
+      if (res.ok && json.success) {
         setHotmartTestResult({
           success: true,
           message: '¡Hotmart ha sido marcado como conectado exitosamente!',
         });
         await fetchStatus();
         if (onRefreshData) onRefreshData();
+      } else {
+        setHotmartTestResult({
+          success: false,
+          message: json.message || `Error al verificar (HTTP ${res.status})`,
+        });
       }
     } catch (e) {
-      console.warn(e);
+      setHotmartTestResult({
+        success: false,
+        message: e instanceof Error ? e.message : 'Error al comunicarse con el servidor',
+      });
     }
   };
 

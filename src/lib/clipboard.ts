@@ -39,13 +39,15 @@ export async function copyToClipboard(text: string): Promise<boolean> {
  * Resolves the real absolute Webhook URL for Hotmart
  */
 export function getWebhookUrl(serverReportedUrl?: string): string {
+  // If a server-reported URL exists and is a valid HTTPS endpoint
+  if (serverReportedUrl && serverReportedUrl.startsWith('http') && !serverReportedUrl.includes('localhost') && !serverReportedUrl.includes('127.0.0.1')) {
+    return serverReportedUrl;
+  }
   if (typeof window !== 'undefined' && window.location?.origin) {
     const origin = window.location.origin;
-    // If the server reported a custom domain that is not localhost, we can trust it, otherwise use browser origin
-    if (serverReportedUrl && !serverReportedUrl.includes('localhost') && !serverReportedUrl.includes('127.0.0.1')) {
-      return serverReportedUrl;
+    if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      return `${origin}/api/webhooks/hotmart`;
     }
-    return `${origin}/api/webhooks/hotmart`;
   }
   return serverReportedUrl || '/api/webhooks/hotmart';
 }
