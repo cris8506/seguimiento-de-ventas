@@ -64,7 +64,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const checkBackendHealth = useCallback(async () => {
     setCheckingHealth(true);
     try {
-      const res = await fetch('/api/health');
+      const res = await fetch('/api/health', {
+        method: 'GET',
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.ok === true || data.status === 'ok') {
@@ -175,6 +177,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       const res = await fetch('/api/debug/test-hotmart-webhook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

@@ -15,7 +15,6 @@ apiRouter.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({
     ok: true,
     service: 'conversion-bridge',
-    timestamp: new Date().toISOString(),
   });
 });
 

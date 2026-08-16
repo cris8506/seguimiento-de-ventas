@@ -11,6 +11,16 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  // Diagnostic request logger for developmental monitoring (METHOD PATH STATUS)
+  app.use((req, res, next) => {
+    res.on('finish', () => {
+      if (req.path.startsWith('/api') || req.originalUrl.startsWith('/api')) {
+        console.log(`${req.method} ${req.originalUrl || req.url} ${res.statusCode}`);
+      }
+    });
+    next();
+  });
+
   // Mount API router FIRST (all /api endpoints handled here)
   app.use('/api', apiRouter);
 
